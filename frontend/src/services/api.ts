@@ -1,9 +1,9 @@
 import axios, { AxiosError } from 'axios';
 import { User, Quiz, Question } from '../types';
 
-// Create an axios instance with default config
-const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+// Create axios instance
+const API = axios.create({
+  baseURL: 'http://localhost:5002/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -32,12 +32,12 @@ export const handleApiError = (error: unknown): never => {
   throw new Error('An unexpected error occurred');
 };
 
-// Add a request interceptor to add the auth token to requests
-api.interceptors.request.use(
+// Add token to requests if it exists
+API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
@@ -47,7 +47,7 @@ api.interceptors.request.use(
 );
 
 // Add a response interceptor to handle common errors
-api.interceptors.response.use(
+API.interceptors.response.use(
   (response) => {
     return response;
   },
@@ -58,145 +58,81 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: async (email: string, password: string) => {
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+  register: async (userData: { username: string; email: string; password: string; role: string }) => {
+    const response = await API.post('/auth/register', userData);
+    return response.data;
   },
-  register: async (userData: {
-    username: string;
-    email: string;
-    password: string;
-    role: string;
-  }) => {
-    try {
-      const response = await api.post('/auth/register', userData);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+  
+  login: async (credentials: { email: string; password: string }) => {
+    const response = await API.post('/auth/login', credentials);
+    return response.data;
   },
+  
   getCurrentUser: async () => {
-    try {
-      const response = await api.get('/auth/me');
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  logout: () => {
-    localStorage.removeItem('token');
-  },
-};
-
-// Quiz API
-export const quizAPI = {
-  getAllQuizzes: async () => {
-    try {
-      const response = await api.get('/quizzes');
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  getQuizById: async (id: string) => {
-    try {
-      const response = await api.get(`/quizzes/${id}`);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  createQuiz: async (quizData: {
-    title: string;
-    description: string;
-    subject: string;
-    timeLimit: number;
-    questions: {
-      question: string;
-      options: string[];
-      correctAnswer: number;
-      points: number;
-    }[];
-  }) => {
-    try {
-      const response = await api.post('/quizzes', quizData);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  updateQuiz: async (id: string, quizData: Partial<Quiz>) => {
-    try {
-      const response = await api.put(`/quizzes/${id}`, quizData);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  deleteQuiz: async (id: string) => {
-    try {
-      const response = await api.delete(`/quizzes/${id}`);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  submitQuiz: async (quizId: string, answers: number[]) => {
-    try {
-      const response = await api.post(`/quizzes/${quizId}/submit`, { answers });
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  getActiveQuizzes: async () => {
-    try {
-      const response = await api.get('/quizzes/active');
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+    const response = await API.get('/auth/me');
+    return response.data;
   },
 };
 
 // User API
 export const userAPI = {
   getProfile: async () => {
-    try {
-      const response = await api.get('/users/profile');
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+    const response = await API.get('/users/profile');
+    return response.data;
   },
-  updateProfile: async (userData: Partial<User>) => {
-    try {
-      const response = await api.put('/users/profile', userData);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+  
+  updateProfile: async (userData: { username?: string; email?: string; password?: string }) => {
+    const response = await API.put('/users/profile', userData);
+    return response.data;
   },
-  getQuizResults: async () => {
-    try {
-      const response = await api.get('/users/results');
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
-  },
-  getResultById: async (resultId: string) => {
-    try {
-      const response = await api.get(`/users/results/${resultId}`);
-      return response.data;
-    } catch (error) {
-      throw handleApiError(error);
-    }
+  
+  getUsers: async () => {
+    const response = await API.get('/users');
+    return response.data;
   },
 };
 
-export default api; 
+// Quiz API
+export const quizAPI = {
+  getQuizzes: async (params?: { subject?: string; search?: string; all?: boolean; createdBy?: string }) => {
+    const response = await API.get('/quizzes', { params });
+    return response.data;
+  },
+  
+  getQuiz: async (id: string, take: boolean = false) => {
+    const response = await API.get(`/quizzes/${id}`, { params: { take } });
+    return response.data;
+  },
+  
+  createQuiz: async (quizData: any) => {
+    const response = await API.post('/quizzes', quizData);
+    return response.data;
+  },
+  
+  updateQuiz: async (id: string, quizData: any) => {
+    const response = await API.put(`/quizzes/${id}`, quizData);
+    return response.data;
+  },
+  
+  deleteQuiz: async (id: string) => {
+    const response = await API.delete(`/quizzes/${id}`);
+    return response.data;
+  },
+  
+  submitQuiz: async (id: string, answers: any[], timeTaken: number) => {
+    const response = await API.post(`/quizzes/${id}/submit`, { answers, timeTaken });
+    return response.data;
+  },
+  
+  getUserResults: async () => {
+    const response = await API.get('/quizzes/results');
+    return response.data;
+  },
+  
+  getQuizResults: async (id: string) => {
+    const response = await API.get(`/quizzes/${id}/results`);
+    return response.data;
+  },
+};
+
+export default API; 

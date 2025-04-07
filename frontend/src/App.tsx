@@ -1,16 +1,18 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components
 import Navbar from './components/Navbar';
+
+// Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
 import QuizList from './pages/QuizList';
 import QuizDetail from './pages/QuizDetail';
-import Dashboard from './pages/Dashboard';
 import QuizForm from './pages/QuizForm';
 import Profile from './pages/Profile';
 
@@ -21,7 +23,7 @@ const theme = createTheme({
       main: '#1976d2',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#f50057',
     },
     background: {
       default: '#f5f5f5',
@@ -30,73 +32,37 @@ const theme = createTheme({
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
     h1: {
+      fontSize: '2.5rem',
       fontWeight: 500,
     },
     h2: {
+      fontSize: '2rem',
       fontWeight: 500,
-    },
-    h3: {
-      fontWeight: 500,
-    },
-    h4: {
-      fontWeight: 500,
-    },
-    h5: {
-      fontWeight: 500,
-    },
-    h6: {
-      fontWeight: 500,
-    },
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: 'none',
-          fontWeight: 500,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-        },
-      },
     },
   },
 });
 
+// Protected Route component
 interface ProtectedRouteProps {
-  children: React.ReactNode;
   teacherOnly?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, teacherOnly = false }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ teacherOnly = false }) => {
+  const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
 
-  if (teacherOnly && user.role !== 'teacher') {
+  if (teacherOnly && user?.role !== 'teacher') {
     return <Navigate to="/dashboard" />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 };
 
 const App: React.FC = () => {
@@ -107,50 +73,27 @@ const App: React.FC = () => {
         <Router>
           <Navbar />
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/quizzes" element={<QuizList />} />
-            <Route
-              path="/quizzes/:id"
-              element={
-                <ProtectedRoute>
-                  <QuizDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quiz/create"
-              element={
-                <ProtectedRoute teacherOnly>
-                  <QuizForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quiz/edit/:id"
-              element={
-                <ProtectedRoute teacherOnly>
-                  <QuizForm />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
+            
+            {/* Protected routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/quizzes" element={<QuizList />} />
+              <Route path="/quiz/:id" element={<QuizDetail />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+            
+            {/* Teacher only routes */}
+            <Route element={<ProtectedRoute teacherOnly />}>
+              <Route path="/quiz/create" element={<QuizForm />} />
+              <Route path="/quiz/edit/:id" element={<QuizForm />} />
+            </Route>
+
+            {/* Fallback route */}
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Router>
       </AuthProvider>

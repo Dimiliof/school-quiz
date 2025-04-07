@@ -1,92 +1,121 @@
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Paper,
-  Link,
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { 
+  Container, 
+  Box, 
+  Typography, 
+  TextField, 
+  Button, 
+  Link, 
+  Paper, 
   Alert,
+  CircularProgress
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
-  const { login, error } = useAuth();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Form validation
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
     try {
-      await login(formData.email, formData.password);
+      setIsSubmitting(true);
+      setError(null);
+      
+      await login(email, password);
       navigate('/dashboard');
-    } catch (err) {
-      // Error is handled by the auth context
-      console.error('Login failed:', err);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 8 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" align="center" gutterBottom>
-            Login
+    <Container maxWidth="xs">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
+        <Paper 
+          elevation={3} 
+          sx={{ 
+            p: 4, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center',
+            width: '100%'
+          }}
+        >
+          <Typography component="h1" variant="h5" gutterBottom>
+            Log In
           </Typography>
+          
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
               {error}
             </Alert>
           )}
-          <form onSubmit={handleSubmit}>
+
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
             <TextField
-              fullWidth
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
               margin="normal"
               required
+              fullWidth
+              id="email"
+              label="Email Address"
+              name="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <TextField
-              fullWidth
-              label="Password"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
               margin="normal"
               required
+              fullWidth
+              name="password"
+              label="Password"
+              type="password"
+              id="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              color="primary"
-              size="large"
-              sx={{ mt: 3 }}
+              sx={{ mt: 3, mb: 2 }}
+              disabled={isSubmitting}
             >
-              Login
+              {isSubmitting ? <CircularProgress size={24} /> : 'Log In'}
             </Button>
-          </form>
-          <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Link component={RouterLink} to="/register" variant="body2">
-              Don't have an account? Register
-            </Link>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                Don't have an account?{' '}
+                <Link component={RouterLink} to="/register" variant="body2">
+                  Register here
+                </Link>
+              </Typography>
+            </Box>
           </Box>
         </Paper>
       </Box>
