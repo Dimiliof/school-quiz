@@ -2,7 +2,13 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
+    // Default to MongoDB Atlas URI if local MongoDB is not available
+    const mongoURI = process.env.MONGO_URI || "mongodb+srv://school_quiz_user:YNSgVdmb61RlRNj1@cluster0.mongodb.net/school_quiz?retryWrites=true&w=majority";
+    
+    // Set strictQuery to false to suppress deprecation warning
+    mongoose.set('strictQuery', false);
+    
+    const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
