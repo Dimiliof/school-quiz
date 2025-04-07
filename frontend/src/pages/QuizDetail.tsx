@@ -15,61 +15,58 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Alert,
+  Card,
+  CardContent,
+  Chip,
+  Grid,
+  Divider,
+  Stack,
 } from '@mui/material';
+import { quizAPI } from '../services/api';
 import { Quiz, Question } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const QuizDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<number[]>([]);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showResults, setShowResults] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [score, setScore] = useState<number>(0);
+  const [startTime, setStartTime] = useState<Date | null>(null);
 
   useEffect(() => {
-    // TODO: Fetch quiz details from API
+    // Fetch quiz details from API
     const fetchQuiz = async () => {
+      if (!id) return;
+      
+      setLoading(true);
+      setError(null);
+      
       try {
-        // Simulated API call
-        const mockQuiz: Quiz = {
-          _id: id || '1',
-          title: 'Math Basics',
-          description: 'Test your basic math skills',
-          questions: [
-            {
-              _id: '1',
-              question: 'What is 2 + 2?',
-              options: ['3', '4', '5', '6'],
-              correctAnswer: 1,
-              points: 1,
-            },
-            {
-              _id: '2',
-              question: 'What is 5 × 3?',
-              options: ['12', '15', '18', '20'],
-              correctAnswer: 1,
-              points: 1,
-            },
-          ],
-          createdBy: {
-            _id: '1',
-            username: 'teacher1',
-            email: 'teacher1@example.com',
-            role: 'teacher',
-            createdAt: new Date().toISOString(),
-          },
-          subject: 'Mathematics',
-          timeLimit: 30,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-        };
-        setQuiz(mockQuiz);
-        setTimeLeft(mockQuiz.timeLimit * 60);
+        const quizData = await quizAPI.getQuizById(id);
+        setQuiz(quizData);
+        
+        // Initialize answers array with -1 (unanswered) for each question
+        setAnswers(new Array(quizData.questions.length).fill(-1));
+        
+        // Set the timer
+        setTimeLeft(quizData.timeLimit * 60);
+        
+        // Record start time
+        setStartTime(new Date());
+        
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching quiz:', error);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load quiz');
         setLoading(false);
       }
     };
@@ -78,72 +75,113 @@ const QuizDetail: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
-    if (timeLeft > 0) {
-      const timer = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            handleSubmit();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+    if (!quiz || timeLeft <= 0) return;
+    
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-      return () => clearInterval(timer);
-    }
-  }, [timeLeft]);
+    return () => clearInterval(timer);
+  }, [quiz, timeLeft]);
 
   const handleAnswerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newAnswers = [...answers];
-    newAnswers[currentQuestionIndex] = parseInt(event.target.value);
+    newAnswers[currentQuestionIndex] = parseInt(event.target.value, 10);
     setAnswers(newAnswers);
   };
 
-  const handleNext = () => {
+  const handleNextQuestion = () => {
     if (currentQuestionIndex < (quiz?.questions.length || 0) - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(currentQuestionIndex - 1);
     }
   };
 
-  const handleSubmit = () => {
-    setShowResults(true);
+  const handleSubmit = async () => {
+    if (!quiz || !id) return;
+    
+    // Don't submit if already submitting
+    if (submitting) return;
+    
+    setSubmitting(true);
+    
+    try {
+      // Filter out unanswered questions
+      const validAnswers = answers.map(answer => answer === -1 ? 0 : answer);
+      
+      // Submit answers to the API
+      const result = await quizAPI.submitQuiz(id, validAnswers);
+      
+      setScore(result.score);
+      setShowResults(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit quiz');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const calculateScore = () => {
-    if (!quiz) return 0;
-    return answers.reduce((score, answer, index) => {
-      if (answer === quiz.questions[index].correctAnswer) {
-        return score + quiz.questions[index].points;
-      }
-      return score;
-    }, 0);
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const calculateProgress = (): number => {
+    const answered = answers.filter(a => a !== -1).length;
+    return (answered / answers.length) * 100;
+  };
+
+  const navigateToQuizzes = () => {
+    navigate('/quizzes');
   };
 
   if (loading) {
     return (
-      <Container>
-        <Typography>Loading quiz...</Typography>
+      <Container sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container sx={{ mt: 4 }}>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+          <Button variant="outlined" onClick={navigateToQuizzes}>
+            Back to Quizzes
+          </Button>
+        </Paper>
       </Container>
     );
   }
 
   if (!quiz) {
     return (
-      <Container>
-        <Typography>Quiz not found</Typography>
+      <Container sx={{ mt: 4 }}>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+          <Alert severity="warning">
+            Quiz not found or has been removed.
+          </Alert>
+          <Button variant="outlined" onClick={navigateToQuizzes} sx={{ mt: 2 }}>
+            Back to Quizzes
+          </Button>
+        </Paper>
       </Container>
     );
   }
@@ -152,83 +190,165 @@ const QuizDetail: React.FC = () => {
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          {quiz.title}
-        </Typography>
-        <Typography color="textSecondary" paragraph>
-          {quiz.description}
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Time Remaining: {formatTime(timeLeft)}
-          </Typography>
-          <LinearProgress
-            variant="determinate"
-            value={(timeLeft / (quiz.timeLimit * 60)) * 100}
+      <Box sx={{ mt: 4, mb: 6 }}>
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              {quiz.title}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+              <Chip label={quiz.subject} color="primary" size="small" />
+              <Chip label={`${quiz.timeLimit} minutes`} size="small" />
+              <Chip label={`${quiz.questions.length} questions`} size="small" />
+            </Stack>
+            <Typography variant="body1" color="text.secondary">
+              {quiz.description}
+            </Typography>
+          </Box>
+          
+          <Divider sx={{ mb: 3 }} />
+          
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Time left: <Chip label={formatTime(timeLeft)} color={timeLeft < 60 ? "error" : "default"} />
+            </Typography>
+            <Typography variant="body2">
+              Progress: {calculateProgress().toFixed(0)}% complete
+            </Typography>
+          </Box>
+          
+          <LinearProgress 
+            variant="determinate" 
+            value={calculateProgress()} 
+            sx={{ mb: 3, height: 8, borderRadius: 4 }} 
           />
-        </Box>
-        <Paper elevation={3} sx={{ p: 3, mb: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Question {currentQuestionIndex + 1} of {quiz.questions.length}
-          </Typography>
-          <Typography variant="body1" paragraph>
-            {currentQuestion.question}
-          </Typography>
-          <FormControl component="fieldset">
-            <RadioGroup
-              value={answers[currentQuestionIndex]?.toString() || ''}
-              onChange={handleAnswerChange}
-            >
-              {currentQuestion.options.map((option, index) => (
-                <FormControlLabel
-                  key={index}
-                  value={index.toString()}
-                  control={<Radio />}
-                  label={option}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
+          
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={8}>
+              <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Question {currentQuestionIndex + 1} of {quiz.questions.length}
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    {currentQuestion.question}
+                  </Typography>
+                  
+                  <FormControl component="fieldset" sx={{ width: '100%' }}>
+                    <RadioGroup
+                      value={answers[currentQuestionIndex].toString()}
+                      onChange={handleAnswerChange}
+                    >
+                      {currentQuestion.options.map((option, index) => (
+                        <FormControlLabel
+                          key={index}
+                          value={index.toString()}
+                          control={<Radio />}
+                          label={option}
+                          sx={{ 
+                            mt: 1,
+                            p: 1,
+                            borderRadius: 1,
+                            transition: 'all 0.2s',
+                            '&:hover': { bgcolor: 'action.hover' }
+                          }}
+                        />
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                </CardContent>
+              </Card>
+            
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handlePrevQuestion}
+                  disabled={currentQuestionIndex === 0}
+                >
+                  Previous
+                </Button>
+                {currentQuestionIndex < quiz.questions.length - 1 ? (
+                  <Button
+                    variant="contained"
+                    onClick={handleNextQuestion}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit Quiz'}
+                  </Button>
+                )}
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Question Navigator
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {answers.map((answer, index) => (
+                      <Chip
+                        key={index}
+                        label={index + 1}
+                        color={answer !== -1 ? 'primary' : 'default'}
+                        variant={currentQuestionIndex === index ? 'filled' : 'outlined'}
+                        onClick={() => setCurrentQuestionIndex(index)}
+                        sx={{ minWidth: 40 }}
+                      />
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </Paper>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            variant="contained"
-            onClick={handlePrevious}
-            disabled={currentQuestionIndex === 0}
-          >
-            Previous
-          </Button>
-          {currentQuestionIndex === quiz.questions.length - 1 ? (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSubmit}
-            >
-              Submit
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              onClick={handleNext}
-            >
-              Next
-            </Button>
-          )}
-        </Box>
       </Box>
 
-      <Dialog open={showResults} onClose={() => navigate('/quizzes')}>
+      <Dialog
+        open={showResults}
+        onClose={() => {}}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Quiz Results</DialogTitle>
         <DialogContent>
-          <Typography variant="h6" gutterBottom>
-            Your Score: {calculateScore()} / {quiz.questions.reduce((total, q) => total + q.points, 0)}
-          </Typography>
+          <Box sx={{ py: 2 }}>
+            <Typography variant="h4" align="center" gutterBottom>
+              {score}%
+            </Typography>
+            <LinearProgress 
+              variant="determinate" 
+              value={score} 
+              color={score >= 70 ? "success" : score >= 50 ? "warning" : "error"}
+              sx={{ height: 10, borderRadius: 5, mb: 3 }} 
+            />
+            <Typography variant="body1" gutterBottom>
+              Thank you for completing the quiz!
+            </Typography>
+            {startTime && (
+              <Typography variant="body2" color="text.secondary">
+                Time taken: {Math.round((new Date().getTime() - startTime.getTime()) / 60000)} minutes
+              </Typography>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => navigate('/quizzes')}>
+          <Button onClick={navigateToQuizzes} color="primary">
             Back to Quizzes
           </Button>
+          {user?.role === 'student' && (
+            <Button onClick={() => navigate('/dashboard')} color="primary" variant="contained">
+              View All Results
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Container>

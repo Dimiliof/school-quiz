@@ -1,5 +1,35 @@
 {
+  "name": "school-quiz",
+  "version": "1.0.0",
+  "description": "A school quiz platform for teachers and students",
+  "main": "backend/src/server.js",
+  "scripts": {
+    "start": "node backend/src/server.js",
+    "server": "nodemon backend/src/server.js",
+    "client": "npm start --prefix frontend",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "npm install && cd frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm install --prefix frontend && npm run build --prefix frontend"
+  },
+  "keywords": [
+    "quiz",
+    "education",
+    "school",
+    "mern"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^6.9.1"
+  },
   "devDependencies": {
-    "@types/node": "^22.14.0"
+    "concurrently": "^7.6.0",
+    "nodemon": "^2.0.20"
   }
 }

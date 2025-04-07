@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { User, Quiz, Question } from '../types';
 
 // Create an axios instance with default config
@@ -8,6 +8,29 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Error handling helper
+export const handleApiError = (error: unknown): never => {
+  if (axios.isAxiosError(error)) {
+    const axiosError = error as AxiosError<{ message: string }>;
+    if (axiosError.response?.data?.message) {
+      throw new Error(axiosError.response.data.message);
+    }
+    if (axiosError.response?.status === 401) {
+      // Unauthorized - clear token and redirect to login
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+      throw new Error('Your session has expired. Please log in again.');
+    }
+    if (axiosError.response?.status === 403) {
+      throw new Error('You do not have permission to perform this action.');
+    }
+    if (axiosError.message) {
+      throw new Error(axiosError.message);
+    }
+  }
+  throw new Error('An unexpected error occurred');
+};
 
 // Add a request interceptor to add the auth token to requests
 api.interceptors.request.use(
@@ -23,11 +46,25 @@ api.interceptors.request.use(
   }
 );
 
+// Add a response interceptor to handle common errors
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Auth API
 export const authAPI = {
   login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    return response.data;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   register: async (userData: {
     username: string;
@@ -35,12 +72,20 @@ export const authAPI = {
     password: string;
     role: string;
   }) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+    try {
+      const response = await api.post('/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   getCurrentUser: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
+    try {
+      const response = await api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   logout: () => {
     localStorage.removeItem('token');
@@ -50,12 +95,20 @@ export const authAPI = {
 // Quiz API
 export const quizAPI = {
   getAllQuizzes: async () => {
-    const response = await api.get('/quizzes');
-    return response.data;
+    try {
+      const response = await api.get('/quizzes');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   getQuizById: async (id: string) => {
-    const response = await api.get(`/quizzes/${id}`);
-    return response.data;
+    try {
+      const response = await api.get(`/quizzes/${id}`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   createQuiz: async (quizData: {
     title: string;
@@ -69,36 +122,80 @@ export const quizAPI = {
       points: number;
     }[];
   }) => {
-    const response = await api.post('/quizzes', quizData);
-    return response.data;
+    try {
+      const response = await api.post('/quizzes', quizData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   updateQuiz: async (id: string, quizData: Partial<Quiz>) => {
-    const response = await api.put(`/quizzes/${id}`, quizData);
-    return response.data;
+    try {
+      const response = await api.put(`/quizzes/${id}`, quizData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   deleteQuiz: async (id: string) => {
-    const response = await api.delete(`/quizzes/${id}`);
-    return response.data;
+    try {
+      const response = await api.delete(`/quizzes/${id}`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   submitQuiz: async (quizId: string, answers: number[]) => {
-    const response = await api.post(`/quizzes/${quizId}/submit`, { answers });
-    return response.data;
+    try {
+      const response = await api.post(`/quizzes/${quizId}/submit`, { answers });
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getActiveQuizzes: async () => {
+    try {
+      const response = await api.get('/quizzes/active');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
 };
 
 // User API
 export const userAPI = {
   getProfile: async () => {
-    const response = await api.get('/users/profile');
-    return response.data;
+    try {
+      const response = await api.get('/users/profile');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   updateProfile: async (userData: Partial<User>) => {
-    const response = await api.put('/users/profile', userData);
-    return response.data;
+    try {
+      const response = await api.put('/users/profile', userData);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
   getQuizResults: async () => {
-    const response = await api.get('/users/results');
-    return response.data;
+    try {
+      const response = await api.get('/users/results');
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  },
+  getResultById: async (resultId: string) => {
+    try {
+      const response = await api.get(`/users/results/${resultId}`);
+      return response.data;
+    } catch (error) {
+      throw handleApiError(error);
+    }
   },
 };
 
