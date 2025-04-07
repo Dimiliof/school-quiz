@@ -1,7 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components
 import Navbar from './components/Navbar';
@@ -24,23 +25,57 @@ const theme = createTheme({
   },
 });
 
-function App() {
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  return <>{children}</>;
+};
+
+const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/quizzes" element={<QuizList />} />
-          <Route path="/quizzes/:id" element={<QuizDetail />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/quizzes" element={<QuizList />} />
+            <Route
+              path="/quizzes/:id"
+              element={
+                <ProtectedRoute>
+                  <QuizDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
-}
+};
 
 export default App; 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -13,10 +13,13 @@ import {
   Select,
   MenuItem,
   SelectChangeEvent,
+  Alert,
 } from '@mui/material';
+import { useAuth } from '../contexts/AuthContext';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
+  const { register, error } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -27,18 +30,18 @@ const Register: React.FC = () => {
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value,
-    });
+    }));
   };
 
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: value,
-    });
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,8 +50,14 @@ const Register: React.FC = () => {
       alert('Passwords do not match');
       return;
     }
-    // TODO: Implement registration logic
-    console.log('Registration form submitted:', formData);
+    try {
+      const { confirmPassword, ...registerData } = formData;
+      await register(registerData);
+      navigate('/dashboard');
+    } catch (err) {
+      // Error is handled by the auth context
+      console.error('Registration failed:', err);
+    }
   };
 
   return (
@@ -58,6 +67,11 @@ const Register: React.FC = () => {
           <Typography variant="h4" component="h1" align="center" gutterBottom>
             Register
           </Typography>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
@@ -122,11 +136,7 @@ const Register: React.FC = () => {
             </Button>
           </form>
           <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => navigate('/login')}
-            >
+            <Link component={RouterLink} to="/login" variant="body2">
               Already have an account? Login
             </Link>
           </Box>

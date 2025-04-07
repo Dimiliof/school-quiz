@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -8,26 +8,35 @@ import {
   Box,
   Paper,
   Link,
+  Alert,
 } from '@mui/material';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { login, error } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement login logic
-    console.log('Login form submitted:', formData);
+    try {
+      await login(formData.email, formData.password);
+      navigate('/dashboard');
+    } catch (err) {
+      // Error is handled by the auth context
+      console.error('Login failed:', err);
+    }
   };
 
   return (
@@ -37,6 +46,11 @@ const Login: React.FC = () => {
           <Typography variant="h4" component="h1" align="center" gutterBottom>
             Login
           </Typography>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
@@ -70,11 +84,7 @@ const Login: React.FC = () => {
             </Button>
           </form>
           <Box sx={{ mt: 2, textAlign: 'center' }}>
-            <Link
-              component="button"
-              variant="body2"
-              onClick={() => navigate('/register')}
-            >
+            <Link component={RouterLink} to="/register" variant="body2">
               Don't have an account? Register
             </Link>
           </Box>
