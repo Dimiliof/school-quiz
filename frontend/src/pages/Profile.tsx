@@ -3,283 +3,489 @@ import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
-  TextField,
-  Button,
   Box,
   Paper,
-  Grid,
+  TextField,
+  Button,
   Avatar,
-  Divider,
-  Alert,
+  Grid,
   CircularProgress,
-  IconButton,
+  Alert,
+  Divider,
   Card,
   CardContent,
-  CardHeader,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
+  IconButton,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
-import PersonIcon from '@mui/icons-material/Person';
-import EmailIcon from '@mui/icons-material/Email';
-import SchoolIcon from '@mui/icons-material/School';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import { useAuth } from '../contexts/AuthContext';
+import LockIcon from '@mui/icons-material/Lock';
+import SchoolIcon from '@mui/icons-material/School';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { userAPI } from '../services/api';
-import { User } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const Profile: React.FC = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
+  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [openPasswordDialog, setOpenPasswordDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
-  const [profile, setProfile] = useState<Partial<User>>({
+  const [quizResults, setQuizResults] = useState<any[]>([]);
+  
+  // Form state
+  const [formData, setFormData] = useState({
     username: '',
     email: '',
-    role: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
   });
-  const [quizResults, setQuizResults] = useState<any[]>([]);
-
+  
   useEffect(() => {
     if (user) {
-      setProfile({
+      setFormData({
+        ...formData,
         username: user.username,
         email: user.email,
-        role: user.role,
       });
-      
-      // Fetch user profile data
-      setLoading(true);
-      Promise.all([
-        userAPI.getProfile(),
-        userAPI.getQuizResults()
-      ])
-        .then(([profileData, resultsData]) => {
-          setProfile(profileData);
-          setQuizResults(resultsData);
-        })
-        .catch((err) => {
-          setError('Failed to load profile data. Please try again.');
-          console.error(err);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
     }
   }, [user]);
-
+  
+  useEffect(() => {
+    const fetchQuizResults = async () => {
+      setLoading(true);
+      try {
+        const results = await userAPI.getQuizResults();
+        setQuizResults(results);
+      } catch (err) {
+        setError('Failed to load quiz results');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchQuizResults();
+  }, []);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setProfile((prev) => ({
-      ...prev,
+    setFormData({
+      ...formData,
       [name]: value,
-    }));
+    });
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  
+  const handleEditToggle = () => {
+    setEditMode(!editMode);
+    setError(null);
+    setSuccess(null);
+    
+    // Reset form when canceling edit
+    if (editMode && user) {
+      setFormData({
+        ...formData,
+        username: user.username,
+        email: user.email,
+      });
+    }
+  };
+  
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) return;
+    
+    // Basic validation
+    if (!formData.username.trim() || !formData.email.trim()) {
+      setError('Username and email are required');
+      return;
+    }
+    
     setSaving(true);
     setError(null);
     setSuccess(null);
-
+    
     try {
-      await userAPI.updateProfile(profile);
-      setSuccess('Profile updated successfully!');
+      const updatedUser = await userAPI.updateProfile({
+        username: formData.username,
+        email: formData.email,
+      });
+      
+      // Update the user context
+      updateUser(updatedUser);
+      
+      setSuccess('Profile updated successfully');
       setEditMode(false);
     } catch (err) {
-      setError('Failed to update profile. Please try again.');
-      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setSaving(false);
     }
   };
-
+  
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Password validation
+    if (!formData.currentPassword) {
+      setError('Current password is required');
+      return;
+    }
+    
+    if (formData.newPassword.length < 6) {
+      setError('New password must be at least 6 characters');
+      return;
+    }
+    
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError('New passwords do not match');
+      return;
+    }
+    
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      await userAPI.updateProfile({
+        password: formData.newPassword,
+        currentPassword: formData.currentPassword,
+      });
+      
+      setSuccess('Password updated successfully');
+      setOpenPasswordDialog(false);
+      
+      // Reset password fields
+      setFormData({
+        ...formData,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password');
+    } finally {
+      setSaving(false);
+    }
+  };
+  
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
-
-  if (loading) {
-    return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
-        <CircularProgress />
-      </Container>
-    );
+  
+  if (!user) {
+    navigate('/login');
+    return null;
   }
-
+  
   return (
-    <Container maxWidth="md">
+    <Container maxWidth="lg">
       <Box sx={{ mt: 4, mb: 6 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Avatar
-              sx={{ width: 80, height: 80, mr: 3, bgcolor: 'primary.main' }}
-            >
-              {profile.username?.charAt(0).toUpperCase()}
-            </Avatar>
-            <Box>
-              <Typography variant="h4" component="h1">
-                {profile.username}
-              </Typography>
-              <Chip
-                label={profile.role === 'teacher' ? 'Teacher' : 'Student'}
-                color={profile.role === 'teacher' ? 'primary' : 'secondary'}
-                size="small"
-                sx={{ mt: 1 }}
-              />
-            </Box>
-          </Box>
-
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
-
-          {success && (
-            <Alert severity="success" sx={{ mb: 3 }}>
-              {success}
-            </Alert>
-          )}
-
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardHeader
-                  title="Profile Information"
-                  action={
-                    !editMode ? (
-                      <IconButton onClick={() => setEditMode(true)}>
-                        <EditIcon />
-                      </IconButton>
-                    ) : (
-                      <Box>
-                        <IconButton onClick={() => setEditMode(false)} color="error">
-                          <CancelIcon />
-                        </IconButton>
-                      </Box>
-                    )
-                  }
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
+          <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Avatar 
+                sx={{ 
+                  width: 80, 
+                  height: 80, 
+                  bgcolor: user.role === 'teacher' ? 'primary.main' : 'secondary.main',
+                  mr: 3 
+                }}
+              >
+                {user.username.charAt(0).toUpperCase()}
+              </Avatar>
+              <Box>
+                <Typography variant="h4" component="h1" gutterBottom>
+                  {user.username}
+                </Typography>
+                <Chip 
+                  icon={user.role === 'teacher' ? <SchoolIcon /> : <AccountCircleIcon />} 
+                  label={user.role === 'teacher' ? 'Teacher' : 'Student'} 
+                  color={user.role === 'teacher' ? 'primary' : 'secondary'} 
+                  size="small"
                 />
-                <Divider />
-                <CardContent>
-                  {editMode ? (
-                    <form onSubmit={handleSubmit}>
-                      <TextField
-                        fullWidth
-                        label="Username"
-                        name="username"
-                        value={profile.username}
-                        onChange={handleChange}
-                        margin="normal"
-                        required
-                      />
-                      <TextField
-                        fullWidth
-                        label="Email"
-                        name="email"
-                        type="email"
-                        value={profile.email}
-                        onChange={handleChange}
-                        margin="normal"
-                        required
-                      />
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                        <Button
-                          type="submit"
-                          variant="contained"
-                          color="primary"
-                          startIcon={<SaveIcon />}
-                          disabled={saving}
-                        >
-                          {saving ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                      </Box>
-                    </form>
-                  ) : (
-                    <List>
-                      <ListItem>
-                        <ListItemIcon>
-                          <PersonIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary="Username"
-                          secondary={profile.username}
-                        />
-                      </ListItem>
-                      <ListItem>
-                        <ListItemIcon>
-                          <EmailIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary="Email"
-                          secondary={profile.email}
-                        />
-                      </ListItem>
-                      <ListItem>
-                        <ListItemIcon>
-                          <SchoolIcon />
-                        </ListItemIcon>
-                        <ListItemText
-                          primary="Role"
-                          secondary={profile.role === 'teacher' ? 'Teacher' : 'Student'}
-                        />
-                      </ListItem>
-                    </List>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Card>
-                <CardHeader title="Quiz Results" />
-                <Divider />
-                <CardContent>
-                  {quizResults.length > 0 ? (
-                    <List>
-                      {quizResults.map((result, index) => (
-                        <ListItem key={index} divider={index < quizResults.length - 1}>
-                          <ListItemText
-                            primary={result.quizTitle}
-                            secondary={`Score: ${result.score}% | Date: ${new Date(result.date).toLocaleDateString()}`}
-                          />
-                          <Chip
-                            label={`${result.score}%`}
-                            color={result.score >= 70 ? 'success' : result.score >= 50 ? 'warning' : 'error'}
-                            size="small"
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Typography variant="body1" color="text.secondary" align="center">
-                      No quiz results yet.
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-
-          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+              </Box>
+            </Box>
             <Button
               variant="outlined"
               color="error"
+              startIcon={<LogoutIcon />}
               onClick={handleLogout}
             >
               Logout
             </Button>
           </Box>
+          
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              {success}
+            </Alert>
+          )}
+          
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h5" component="h2">
+                      Account Information
+                    </Typography>
+                    <IconButton 
+                      onClick={handleEditToggle} 
+                      color={editMode ? 'primary' : 'default'}
+                      aria-label="edit profile"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                  </Box>
+                  
+                  <Divider sx={{ mb: 3 }} />
+                  
+                  <form onSubmit={handleProfileUpdate}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Username"
+                          name="username"
+                          value={formData.username}
+                          onChange={handleChange}
+                          disabled={!editMode}
+                          required
+                          variant="outlined"
+                          margin="normal"
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Email"
+                          name="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          disabled={!editMode}
+                          required
+                          variant="outlined"
+                          margin="normal"
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Box sx={{ mt: 2 }}>
+                          <Button
+                            variant="outlined"
+                            color="primary"
+                            startIcon={<LockIcon />}
+                            onClick={() => setOpenPasswordDialog(true)}
+                            disabled={editMode}
+                          >
+                            Change Password
+                          </Button>
+                        </Box>
+                      </Grid>
+                      {editMode && (
+                        <Grid item xs={12}>
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2, gap: 2 }}>
+                            <Button
+                              variant="outlined"
+                              onClick={handleEditToggle}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              variant="contained"
+                              color="primary"
+                              startIcon={<SaveIcon />}
+                              disabled={saving}
+                            >
+                              {saving ? 'Saving...' : 'Save Changes'}
+                            </Button>
+                          </Box>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </form>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="h5" component="h2" gutterBottom>
+                    Account Details
+                  </Typography>
+                  
+                  <Divider sx={{ mb: 3 }} />
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Role
+                      </Typography>
+                      <Typography variant="body1">
+                        {user.role === 'teacher' ? 'Teacher' : 'Student'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Member Since
+                      </Typography>
+                      <Typography variant="body1">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Box sx={{ mt: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                          {user.role === 'teacher' ? 'Created Quizzes' : 'Quiz Attempts'}
+                        </Typography>
+                        {loading ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                            <CircularProgress size={24} />
+                          </Box>
+                        ) : quizResults.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            {user.role === 'teacher' 
+                              ? 'You haven\'t created any quizzes yet' 
+                              : 'You haven\'t taken any quizzes yet'}
+                          </Typography>
+                        ) : (
+                          <Box sx={{ mt: 2 }}>
+                            {quizResults.slice(0, 5).map((result, index) => (
+                              <Box 
+                                key={index} 
+                                sx={{ 
+                                  p: 1.5, 
+                                  mb: 1, 
+                                  border: 1, 
+                                  borderColor: 'divider',
+                                  borderRadius: 1,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <Box>
+                                  <Typography variant="body1">
+                                    {result.quizTitle}
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {new Date(result.date).toLocaleDateString()}
+                                  </Typography>
+                                </Box>
+                                {user.role === 'student' && (
+                                  <Chip 
+                                    label={`${result.score}%`} 
+                                    color={
+                                      result.score >= 70 ? 'success' : 
+                                      result.score >= 50 ? 'warning' : 'error'
+                                    } 
+                                    size="small" 
+                                  />
+                                )}
+                              </Box>
+                            ))}
+                            {quizResults.length > 5 && (
+                              <Button 
+                                variant="text" 
+                                size="small" 
+                                onClick={() => navigate('/dashboard')}
+                                sx={{ mt: 1 }}
+                              >
+                                View All
+                              </Button>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </Paper>
       </Box>
+
+      {/* Password Change Dialog */}
+      <Dialog
+        open={openPasswordDialog}
+        onClose={() => setOpenPasswordDialog(false)}
+        aria-labelledby="password-dialog-title"
+      >
+        <DialogTitle id="password-dialog-title">Change Password</DialogTitle>
+        <form onSubmit={handlePasswordChange}>
+          <DialogContent>
+            <DialogContentText>
+              Please enter your current password and your new password.
+            </DialogContentText>
+            <TextField
+              fullWidth
+              margin="normal"
+              name="currentPassword"
+              label="Current Password"
+              type="password"
+              value={formData.currentPassword}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              name="newPassword"
+              label="New Password"
+              type="password"
+              value={formData.newPassword}
+              onChange={handleChange}
+              required
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              name="confirmPassword"
+              label="Confirm New Password"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenPasswordDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              variant="contained" 
+              color="primary"
+              disabled={saving}
+            >
+              {saving ? 'Updating...' : 'Update Password'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </Container>
   );
 };
